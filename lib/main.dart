@@ -48,20 +48,40 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text(
           _medicines[index]['isTaken']
               ? '${_medicines[index]['name']} গ্রহণ করেছেন!'
-              : '${_medicines[index]['name']} স্ট্যাটাস রিমুভ করা হয়েছে।',
+              : '${_medicines[index]['name']} স্ট্যাটাস পরিবর্তন করা হয়েছে।',
         ),
         duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  void _deleteMedicine(int index) {
-    final deletedName = _medicines[index]['name'];
-    setState(() {
-      _medicines.removeAt(index);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$deletedName মুছে ফেলা হয়েছে')),
+  void _confirmDelete(int index) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ওষুধটি কি মুছে ফেলতে চান?'),
+        content: Text('আপনার তালিকা থেকে "${_medicines[index]['name']}" মুছে ফেলা হবে।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('না'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              final deletedName = _medicines[index]['name'];
+              setState(() {
+                _medicines.removeAt(index);
+              });
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$deletedName মুছে ফেলা হয়েছে')),
+              );
+            },
+            child: const Text('হ্যাঁ, মুছে ফেলুন'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -87,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: _timeController,
               decoration: const InputDecoration(
-                labelText: 'সময় ও নির্দেশ (যেমন: রাত ৯:০০ টা)',
+                labelText: 'সময় ও নির্দেশ',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -157,26 +177,17 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 100), // বাটনগুলোর নিচে জায়গা খালি রাখার জন্য
+                padding: const EdgeInsets.only(bottom: 120),
                 itemCount: _medicines.length,
                 itemBuilder: (context, index) {
                   final med = _medicines[index];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.medication,
-                        color: med['isTaken'] ? Colors.green : Colors.orange,
-                        size: 32,
-                      ),
-                      title: Text(
-                        med['name'],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(med['time']),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                      child: Row(
                         children: [
+                          // বামপাশে 'ওষুধ খাই' বাটন
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
@@ -186,9 +197,28 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: () => _toggleMedicineState(index),
                             child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
                           ),
+                          const SizedBox(width: 12),
+                          // মাঝখানে নাম ও সময়
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  med['name'],
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  med['time'],
+                                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // ডানপাশে ডিলিট বাটন (সুরক্ষার জন্য পপ-আপসহ)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () => _deleteMedicine(index),
+                            onPressed: () => _confirmDelete(index),
                           ),
                         ],
                       ),
