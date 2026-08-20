@@ -89,7 +89,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('বাতিল'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               if (_nameController.text.isNotEmpty && _timeController.text.isNotEmpty) {
                 setState(() {
@@ -180,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: Column(
-        mainAxisAlignment: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton(
             heroTag: 'add_btn',
