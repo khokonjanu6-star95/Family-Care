@@ -55,6 +55,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _deleteMedicine(int index) {
+    final deletedName = _medicines[index]['name'];
+    setState(() {
+      _medicines.removeAt(index);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$deletedName মুছে ফেলা হয়েছে')),
+    );
+  }
+
   void _showAddMedicineDialog() {
     _nameController.clear();
     _timeController.clear();
@@ -69,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: 'ওষুধের নাম ও ডোজ (যেমন: নাপা ৫০০ মিগ্রা)',
+                labelText: 'ওষুধের নাম ও ডোজ',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -103,9 +113,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 });
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('নতুন ওষুধ যুক্ত করা হয়েছে!')),
-                );
               }
             },
             child: const Text('যোগ করুন'),
@@ -150,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             Expanded(
               child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 100), // বাটনগুলোর নিচে জায়গা খালি রাখার জন্য
                 itemCount: _medicines.length,
                 itemBuilder: (context, index) {
                   final med = _medicines[index];
@@ -166,13 +174,23 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(med['time']),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () => _toggleMedicineState(index),
-                        child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () => _toggleMedicineState(index),
+                            child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            onPressed: () => _deleteMedicine(index),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -184,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton(
             heroTag: 'add_btn',
