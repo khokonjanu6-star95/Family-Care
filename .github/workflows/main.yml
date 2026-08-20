@@ -21,19 +21,12 @@ jobs:
       uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
+        flutter-version: '3.19.0'
 
-    - name: Re-create Fresh App Structure
+    - name: Clean and Prepare
       run: |
-        mkdir temp_app
-        cd temp_app
-        flutter create family_care --org com.familycare.app
-        cp -r family_care/android ../
-        cd ..
-        rm -rf temp_app
+        flutter pub get
 
-    - name: Get dependencies
-      run: flutter pub get
-      
     - name: Build APK
       run: flutter build apk --release --no-tree-shake-icons
 
