@@ -29,12 +29,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ওষুধের লিস্ট ও স্টেট ডাইনামিক করা হলো
   final List<Map<String, dynamic>> _medicines = [
     {'name': 'নাপা ৫০০ মিগ্রা', 'time': 'সকাল ৮:০০ টা (খাবার পর)', 'isTaken': true},
     {'name': 'সেকলো ২০ মিগ্রা', 'time': 'দুপুর ২:০০ টা (খাবার আগে)', 'isTaken': false},
     {'name': 'এটিনোলোল ৫০ মিগ্রা', 'time': 'রাত ১০:০০ টা (খাবার পর)', 'isTaken': false},
   ];
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _timeController = TextEditingController();
 
   void _toggleMedicineState(int index) {
     setState(() {
@@ -44,11 +46,68 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _medicines[index]['isTaken'] 
-              ? '${_medicines[index]['name']} গ্রহণ করেছেন!' 
+          _medicines[index]['isTaken']
+              ? '${_medicines[index]['name']} গ্রহণ করেছেন!'
               : '${_medicines[index]['name']} স্ট্যাটাস রিমুভ করা হয়েছে।',
         ),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showAddMedicineDialog() {
+    _nameController.clear();
+    _timeController.clear();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('নতুন ওষুধ যোগ করুন', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'ওষুধের নাম ও ডোজ (যেমন: নাপা ৫০০ মিগ্রা)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _timeController,
+              decoration: const InputDecoration(
+                labelText: 'সময় ও নির্দেশ (যেমন: রাত ৯:০০ টা)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('বাতিল'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            onPressed: () {
+              if (_nameController.text.isNotEmpty && _timeController.text.isNotEmpty) {
+                setState(() {
+                  _medicines.add({
+                    'name': _nameController.text,
+                    'time': _timeController.text,
+                    'isTaken': false,
+                  });
+                });
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('নতুন ওষুধ যুক্ত করা হয়েছে!')),
+                );
+              }
+            },
+            child: const Text('যোগ করুন'),
+          ),
+        ],
       ),
     );
   }
@@ -120,16 +179,30 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ভয়েস বা স্ক্যান ফিচারটি শীঘ্রই আসছে!')),
-          );
-        },
-        icon: const Icon(Icons.mic),
-        label: const Text('ভয়েস বা স্ক্যান'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'add_btn',
+            onPressed: _showAddMedicineDialog,
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'mic_btn',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('ভয়েস বা স্ক্যান ফিচারটি শীঘ্রই আসছে!')),
+              );
+            },
+            icon: const Icon(Icons.mic),
+            label: const Text('ভয়েস বা স্ক্যান'),
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+          ),
+        ],
       ),
     );
   }
