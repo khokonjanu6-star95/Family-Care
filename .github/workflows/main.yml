@@ -21,11 +21,20 @@ jobs:
       uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
-        flutter-version: '3.19.0'
 
-    - name: Clean and Prepare
+    - name: Auto Create Complete Flutter Structure
       run: |
-        flutter pub get
+        # ১. ব্যাকগ্রাউন্ডে নতুন কমপ্লিট প্রজেক্ট তৈরি
+        flutter create temp_app --org com.familycare.app
+        
+        # ২. প্রয়োজনীয় অ্যান্ড্রয়েড ফাইল মূল ফোল্ডারে আনা
+        cp -r temp_app/android ./
+        
+        # ৩. অস্থায়ী ফোল্ডার মুছে ফেলা
+        rm -rf temp_app
+
+    - name: Get dependencies
+      run: flutter pub get
 
     - name: Build APK
       run: flutter build apk --release --no-tree-shake-icons
