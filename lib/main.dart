@@ -1,8 +1,26 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-void main() {
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  tz.initializeTimeZones();
+
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
   runApp(const FamilyCareApp());
 }
 
@@ -35,15 +53,21 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
 
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _timeController = TextEditingController();
+  TimeOfDay? _selectedTime;
 
   @override
   void initState() {
     super.initState();
+    _requestNotificationPermission();
     _loadMedicines();
   }
 
-  // ডাটা লোড করার মেথড
+  void _requestNotificationPermission() {
+    flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+  }
+
   Future<void> _loadMedicines() async {
     final prefs = await SharedPreferences.getInstance();
     final String? medicinesData = prefs.getString('medicines_data');
@@ -55,24 +79,45 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     } else {
-      // প্রথমবার অ্যাপ রান হলে ডিফল্ট ডাটা
       setState(() {
-        _medicines = [
-          {'name': 'নাপা ৫০০ মিগ্রা', 'time': 'সকাল ৮:০০ টা (খাবার পর)', 'isTaken': true},
-          {'name': 'সেকলো ২০ মিগ্রা', 'time': 'দুপুর ২:০০ টা (খাবার আগে)', 'isTaken': false},
-          {'name': 'এটিনোলোল ৫০ মিগ্রা', 'time': 'রাত ১০:০০ টা (খাবার পর)', 'isTaken': false},
-        ];
+        _medicines = [];
         _isLoading = false;
       });
-      _saveMedicines();
     }
   }
 
-  // ডাটা সেভ করার মেথড
   Future<void> _saveMedicines() async {
     final prefs = await SharedPreferences.getInstance();
     final String encoded = jsonEncode(_medicines);
     await prefs.setString('medicines_data', encoded);
+  }
+
+  Future<void> _scheduleNotification(int id, String title, TimeOfDay time) async {
+    final now = DateTime.now();
+    var scheduledDate = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id,
+      'ওষুধ খাওয়ার সময় হয়েছে!',
+      '$title খাওয়ার সময় হয়ে গেছে। দয়া করে ওষুধটি খেয়ে নিন।',
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'medicine_reminder_channel',
+          'Medicine Reminders',
+          channelDescription: 'Notifications for medicine reminders',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
   }
 
   void _toggleMedicineState(int index) {
@@ -108,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () {
               final deletedName = _medicines[index]['name'];
+              flutterLocalNotificationsPlugin.cancel(index);
               setState(() {
                 _medicines.removeAt(index);
               });
@@ -126,58 +172,80 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddMedicineDialog() {
     _nameController.clear();
-    _timeController.clear();
+    _selectedTime = null;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('নতুন ওষুধ যোগ করুন', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'ওষুধের নাম ও ডোজ',
-                border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('নতুন ওষুধ যোগ করুন', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'ওষুধের নাম ও ডোজ',
+                  border: OutlineInputBorder(),
+                ),
               ),
+              const SizedBox(height: 12),
+              ListTile(
+                tileColor: Colors.grey.shade100,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                title: Text(
+                  _selectedTime == null
+                      ? 'সময় সিলেক্ট করুন'
+                      : 'সময়: ${_selectedTime!.format(context)}',
+                ),
+                trailing: const Icon(Icons.access_time, color: Colors.teal),
+                onTap: () async {
+                  final TimeOfDay? time = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.now(),
+                  );
+                  if (time != null) {
+                    setDialogState(() {
+                      _selectedTime = time;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('বাতিল'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _timeController,
-              decoration: const InputDecoration(
-                labelText: 'সময় ও নির্দেশ',
-                border: OutlineInputBorder(),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
               ),
+              onPressed: () {
+                if (_nameController.text.isNotEmpty && _selectedTime != null) {
+                  final newMed = {
+                    'name': _nameController.text,
+                    'time': _selectedTime!.format(context),
+                    'isTaken': false,
+                  };
+
+                  setState(() {
+                    _medicines.add(newMed);
+                  });
+
+                  int newId = _medicines.length - 1;
+                  _scheduleNotification(newId, _nameController.text, _selectedTime!);
+
+                  _saveMedicines();
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('যোগ করুন'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('বাতিল'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (_nameController.text.isNotEmpty && _timeController.text.isNotEmpty) {
-                setState(() {
-                  _medicines.add({
-                    'name': _nameController.text,
-                    'time': _timeController.text,
-                    'isTaken': false,
-                  });
-                });
-                _saveMedicines();
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('যোগ করুন'),
-          ),
-        ],
       ),
     );
   }
