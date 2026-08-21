@@ -1,23 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
-
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
+void main() {
   runApp(const FamilyCareApp());
 }
 
@@ -68,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _medicines = decoded.map((item) => Map<String, dynamic>.from(item)).toList();
         _isLoading = false;
       });
+      _scheduleInAppAlarms();
     } else {
       setState(() {
         _medicines = [];
@@ -82,30 +69,57 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('medicines_data', encoded);
   }
 
-  Future<void> _showNotification(String title) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'medicine_channel',
-      'Medicine Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-    );
+  void _scheduleInAppAlarms() {
+    final now = DateTime.now();
+    for (var med in _medicines) {
+      if (med['hour'] != null && med['minute'] != null && !(med['isTaken'] ?? false)) {
+        var scheduled = DateTime(now.year, now.month, now.day, med['hour'], med['minute']);
+        if (scheduled.isBefore(now)) {
+          scheduled = scheduled.add(const Duration(days: 1));
+        }
+        final difference = scheduled.difference(now);
+        Timer(difference, () {
+          _triggerAlarmDialog(med['name']);
+        });
+      }
+    }
+  }
 
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      'ওষুধ খাওয়ার রিমাইন্ডার',
-      '$title খাওয়ার সময় হয়েছে!',
-      platformChannelSpecifics,
+  void _triggerAlarmDialog(String medName) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.teal.shade50,
+        title: const Row(
+          children: [
+            Icon(Icons.alarm_on, color: Colors.teal, size: 30),
+            SizedBox(width: 8),
+            Text('ওষুধের সময় হয়েছে!'),
+          ],
+        ),
+        content: Text(
+          'আপনার "$medName" ওষুধটি খাওয়ার সময় হয়ে গেছে। দয়া করে এখনই গ্রহণ করুন।',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ঠিক আছে'),
+          ),
+        ],
+      ),
     );
   }
 
   void _toggleMedicineState(int index) {
     setState(() {
-      _medicines[index]['isTaken'] = !_medicines[index]['isTaken'];
+      _medicines[index]['isTaken'] = !(_medicines[index]['isTaken'] ?? false);
     });
     _saveMedicines();
   }
@@ -192,16 +206,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   final name = _nameController.text;
                   final timeStr = _selectedTime!.format(context);
 
+                  final newMed = {
+                    'name': name,
+                    'time': timeStr,
+                    'hour': _selectedTime!.hour,
+                    'minute': _selectedTime!.minute,
+                    'isTaken': false,
+                  };
+
                   setState(() {
-                    _medicines.add({
-                      'name': name,
-                      'time': timeStr,
-                      'isTaken': false,
-                    });
+                    _medicines.add(newMed);
                   });
 
                   _saveMedicines();
-                  _showNotification(name); // টেস্ট নোটিফিকেশন পাঠাবে
+
+                  final now = DateTime.now();
+                  var scheduled = DateTime(now.year, now.month, now.day, _selectedTime!.hour, _selectedTime!.minute);
+                  if (scheduled.isBefore(now)) {
+                    scheduled = scheduled.add(const Duration(days: 1));
+                  }
+                  final diff = scheduled.difference(now);
+                  Timer(diff, () {
+                    _triggerAlarmDialog(name);
+                  });
+
                   Navigator.pop(ctx);
                 }
               },
@@ -233,11 +261,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
+                        backgroundColor: (med['isTaken'] ?? false) ? Colors.grey : Colors.green,
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () => _toggleMedicineState(index),
-                      child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
+                      child: Text((med['isTaken'] ?? false) ? 'খেয়েছি' : 'ওষুধ খাই'),
                     ),
                     title: Text(med['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(med['time']),
