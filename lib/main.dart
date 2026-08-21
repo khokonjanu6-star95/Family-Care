@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const FamilyCareApp());
@@ -29,19 +31,55 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Map<String, dynamic>> _medicines = [
-    {'name': 'নাপা ৫০০ মিগ্রা', 'time': 'সকাল ৮:০০ টা (খাবার পর)', 'isTaken': true},
-    {'name': 'সেকলো ২০ মিগ্রা', 'time': 'দুপুর ২:০০ টা (খাবার আগে)', 'isTaken': false},
-    {'name': 'এটিনোলোল ৫০ মিগ্রা', 'time': 'রাত ১০:০০ টা (খাবার পর)', 'isTaken': false},
-  ];
+  List<Map<String, dynamic>> _medicines = [];
+  bool _isLoading = true;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _timeController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMedicines();
+  }
+
+  // ডাটা লোড করার মেথড
+  Future<void> _loadMedicines() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? medicinesData = prefs.getString('medicines_data');
+
+    if (medicinesData != null) {
+      final List<dynamic> decoded = jsonDecode(medicinesData);
+      setState(() {
+        _medicines = decoded.map((item) => Map<String, dynamic>.from(item)).toList();
+        _isLoading = false;
+      });
+    } else {
+      // প্রথমবার অ্যাপ রান হলে ডিফল্ট ডাটা
+      setState(() {
+        _medicines = [
+          {'name': 'নাপা ৫০০ মিগ্রা', 'time': 'সকাল ৮:০০ টা (খাবার পর)', 'isTaken': true},
+          {'name': 'সেকলো ২০ মিগ্রা', 'time': 'দুপুর ২:০০ টা (খাবার আগে)', 'isTaken': false},
+          {'name': 'এটিনোলোল ৫০ মিগ্রা', 'time': 'রাত ১০:০০ টা (খাবার পর)', 'isTaken': false},
+        ];
+        _isLoading = false;
+      });
+      _saveMedicines();
+    }
+  }
+
+  // ডাটা সেভ করার মেথড
+  Future<void> _saveMedicines() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded = jsonEncode(_medicines);
+    await prefs.setString('medicines_data', encoded);
+  }
 
   void _toggleMedicineState(int index) {
     setState(() {
       _medicines[index]['isTaken'] = !_medicines[index]['isTaken'];
     });
+    _saveMedicines();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -73,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 _medicines.removeAt(index);
               });
+              _saveMedicines();
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('$deletedName মুছে ফেলা হয়েছে')),
@@ -132,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'isTaken': false,
                   });
                 });
+                _saveMedicines();
                 Navigator.pop(ctx);
               }
             },
@@ -151,85 +191,84 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Card(
-              color: Colors.tealAccent,
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.favorite, color: Colors.teal, size: 36),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'আজকের ওষুধ গ্রহণের সময়সূচী',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 120),
-                itemCount: _medicines.length,
-                itemBuilder: (context, index) {
-                  final med = _medicines[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Card(
+                    color: Colors.tealAccent,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                      padding: EdgeInsets.all(16.0),
                       child: Row(
                         children: [
-                          // বামপাশে 'ওষুধ খাই' বাটন
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                            ),
-                            onPressed: () => _toggleMedicineState(index),
-                            child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
-                          ),
-                          const SizedBox(width: 12),
-                          // মাঝখানে নাম ও সময়
+                          Icon(Icons.favorite, color: Colors.teal, size: 36),
+                          SizedBox(width: 12),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  med['name'],
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  med['time'],
-                                  style: const TextStyle(color: Colors.black54, fontSize: 13),
-                                ),
-                              ],
+                            child: Text(
+                              'আজকের ওষুধ গ্রহণের সময়সূচী',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                          ),
-                          // ডানপাশে ডিলিট বাটন (সুরক্ষার জন্য পপ-আপসহ)
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () => _confirmDelete(index),
                           ),
                         ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 120),
+                      itemCount: _medicines.length,
+                      itemBuilder: (context, index) {
+                        final med = _medicines[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                            child: Row(
+                              children: [
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: med['isTaken'] ? Colors.grey : Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  ),
+                                  onPressed: () => _toggleMedicineState(index),
+                                  child: Text(med['isTaken'] ? 'খেয়েছি' : 'ওষুধ খাই'),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        med['name'],
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        med['time'],
+                                        style: const TextStyle(color: Colors.black54, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () => _confirmDelete(index),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
